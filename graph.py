@@ -13,7 +13,7 @@ class Graph:
         self.nb_drones: Optional[int] = None
 
     def add_zone(self, zone: Zone) -> None:
-        "Add a zone to the graph."
+        """Add a zone to the graph."""
         self.zones[zone.name] = zone
         self.adjacency[zone.name] = []
 
@@ -27,3 +27,17 @@ class Graph:
             max_capacity=connection.max_capacity
         )
         self.adjacency[connection.to_zone].append(reverse)
+
+    def get_zone(self, name: str) -> Zone:
+        """Return a Zone by name."""
+        if name not in self.zones:
+            raise ValueError(f"Zone not found: {name}")
+        return self.zones[name]
+
+    def is_valid_zone(self, name: str) -> bool:
+        """Return True if zone exists in the graph."""
+        return name in self.zones
+
+    def get_neighbors(self, zone_name: str) -> List[Connection]:
+        """Return all connections from a given zone."""
+        return self.adjacency[zone_name]
