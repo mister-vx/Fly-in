@@ -9,7 +9,7 @@ class Parser:
         self.graph = Graph()
         self.first_line = True
         self.connections_started = False
-        self.seen_connections = set[frozenset[set]] = set()
+        self.seen_connections : set[frozenset[set]] = set()
 
     def parse(self):
         """Parse the file and return a populated Graph."""
@@ -40,7 +40,7 @@ class Parser:
     def parse_line(self, line: str):
         if self.first_line:
             self.first_line = False
-            if not line.startswith("nb_drones")
+            if not line.startswith("nb_drones"):
                 raise ValueError("'nb_drones' must be the first line")
             self.parse_drones(line)
             return
@@ -88,6 +88,8 @@ class Parser:
         if len(lst) < 4:
             raise ValueError("Zone line must have: <prefix> <name> <x> <y>")
         name = lst[1]
+        if not name or name.isdigit():
+            raise ValueError(f"Invalid zone name '{name}'")
         if "-" in name:
             raise ValueError("Zone name cannot contain '-'")
         try:
@@ -127,14 +129,25 @@ class Parser:
         _, _, c = line.partition(":")
         content = c.strip()
         main_part = content.split()[0].strip()
-        from_zone, to_zone = main_part.split("-")
+        parts = main_part.split("-")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValueError(f"Connection must be '<zone1>-<zone2>', got '{main_part}'")
+        from_zone, to_zone = parts[0].strip(), parts[1].strip()
+        if from_zone == to_zone:
+            raise ValueError(f"Zone '{from_zone}' cannot connect to itself")
         if from_zone not in self.graph.zones or to_zone not in self.graph.zones:
             raise ValueError("Connection references unknown zone")
+        key: frozenset[str] = frozenset({from_zone, to_zone})
+        if key in self.seen_connections:
+            raise ValueError(f"Duplicate Connection '{from_zone}-{to_zone}'")
+        self.seen_connections.add(key)
         metadata = self.parse_metadata(line)
         try:
             max_link_capacity = int(metadata.get("max_link_capacity", 1))
+            if max_link_capacity <= 0:
+                raise ValueError()
         except Exception:
-            raise ValueError("max_link_capacity must be integer")
+            raise ValueError("max_link_capacity must be a positive integer")
         connection = Connection(
             from_zone=from_zone,
             to_zone=to_zone,
@@ -143,16 +156,19 @@ class Parser:
         self.graph.add_connection(connection)
 
     def parse_metadata(self, line: str):
-                """Extract key=value pairs from the [...] block, if present."""
+        """Extract key=value pairs from the [...] block, if present."""
         metadata = re.search(r"\[(.*?)\]", line)
         if not metadata:
             return {}
         data = metadata.group(1)
         items = data.split()
-        metadata = {}
+        metadata: dict[str, str] = {}
         for item in items:
             if "=" not in item:
                 raise ValueError(f"Invalid metadata token '{item}'")
             key, _, value = item.partition("=")
-            metadata[key.strip()] = value.strip()
+            key = key.strip()
+            if key in metadata:
+                raise ValueError(f"Duplicate metadata key '{key}'")
+            metadata[key] = value.strip()
         return metadata
